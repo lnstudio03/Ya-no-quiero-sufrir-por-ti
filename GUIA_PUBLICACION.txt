@@ -7,13 +7,13 @@ Esta plataforma es una sola pagina web. Necesita estos tres archivos en la raiz 
   style.css
   app.js
 
-Las variantes del logotipo estan en la carpeta assets:
-  assets/logo-principal.png    Logo principal circular.
-  assets/logo-horizontal.png   Marca horizontal; se usa en el encabezado.
-  assets/logo-cuadrado.png     Version cuadrada; se usa como icono Apple.
-  assets/simbolo.png           Simbolo sin texto.
-  assets/favicon.png           Icono circular de la pestana del navegador.
-  assets/logo-monocromo.png    Version monocromatica.
+Las variantes del logotipo estan en la raiz, junto a index.html:
+  logo-principal.png    Logo principal circular.
+  logo-horizontal.png   Marca horizontal; se usa en el encabezado.
+  logo-cuadrado.png     Version cuadrada; se usa como icono Apple.
+  simbolo.png           Simbolo sin texto.
+  favicon.png           Icono circular de la pestana del navegador.
+  logo-monocromo.png    Version monocromatica.
 
 
 1. CREAR EL PROYECTO EN SUPABASE
@@ -163,7 +163,7 @@ Abre PowerShell y ejecuta estos comandos, uno por uno:
 
 Set-Location -LiteralPath "C:\Users\Lian Natera Leoncio\OneDrive\Desktop\Ya no quiero sufrir por ti"
 git init
-git add index.html style.css app.js GUIA_PUBLICACION.txt assets
+git add index.html style.css app.js GUIA_PUBLICACION.txt favicon.png logo-cuadrado.png logo-horizontal.png logo-monocromo.png logo-principal.png logo.png simbolo.png
 git commit -m "Publicar plataforma de formularios"
 git branch -M main
 
