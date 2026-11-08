@@ -7,6 +7,12 @@ Esta plataforma es una sola pagina web. Necesita estos tres archivos en la raiz 
   style.css
   app.js
 
+Agrega tambien el archivo de imagen original con este nombre exacto:
+  logo.png
+
+Debe estar en la misma carpeta que index.html. Se usa en el encabezado, como
+favicon de la pestana y como icono de inicio en dispositivos Apple.
+
 
 1. CREAR EL PROYECTO EN SUPABASE
 --------------------------------
@@ -155,7 +161,7 @@ Abre PowerShell y ejecuta estos comandos, uno por uno:
 
 Set-Location -LiteralPath "C:\Users\Lian Natera Leoncio\OneDrive\Desktop\Ya no quiero sufrir por ti"
 git init
-git add index.html style.css app.js
+git add index.html style.css app.js logo.png
 git commit -m "Publicar plataforma de formularios"
 git branch -M main
 
