@@ -22,9 +22,8 @@ button { color: inherit; }
 .page-glow-one { top: 40px; left: -230px; background: #743dff; }
 .page-glow-two { top: 360px; right: -260px; background: #087bff; }
 .site-header { height: 78px; max-width: 1180px; margin: auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.07); }
-.brand { color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; letter-spacing: -.3px; }
-.brand i { color: var(--pink); font-style: normal; }
-.brand-logo { display: block; width: 40px; height: 40px; flex: 0 0 auto; object-fit: contain; }
+.brand { color: var(--text); text-decoration: none; display: flex; align-items: center; }
+.brand-logo { display: block; width: 178px; height: auto; flex: 0 0 auto; object-fit: contain; }
 .main-nav { display: flex; align-items: center; gap: 8px; }
 .nav-button { border: 0; padding: 10px 15px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; border-radius: 10px; cursor: pointer; }
 .nav-button:hover, .nav-button.active { color: var(--text); background: rgba(255,255,255,.07); }
@@ -154,8 +153,7 @@ textarea.input-control, .editor-fields textarea, .question-card textarea { resiz
 
 @media (max-width: 700px) {
   .site-header { height: auto; min-height: 68px; padding: 12px 17px; gap: 8px; }
-  .brand { gap: 7px; font-size: 12px; }
-  .brand-logo { width: 34px; height: 34px; }
+  .brand-logo { width: 140px; }
   .main-nav { gap: 0; }
   .nav-button { padding: 9px 8px; font-size: 11px; }
   .hero { padding: 64px 19px 57px; }
@@ -182,7 +180,7 @@ textarea.input-control, .editor-fields textarea, .question-card textarea { resiz
 }
 
 @media (max-width: 390px) {
-  .brand { max-width: 145px; font-size: 11px; }
+  .brand-logo { width: 118px; }
   .nav-button { font-size: 10px; padding: 8px 6px; }
   .section-heading { flex-direction: column; gap: 12px; }
   .admin-heading { align-items: flex-start; }
