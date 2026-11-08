@@ -1,0 +1,213 @@
+GUIA DE CONFIGURACION Y PUBLICACION
+Ya no quiero sufrir por ti
+=================================
+
+Esta plataforma es una sola pagina web. Necesita estos tres archivos en la raiz del proyecto:
+  index.html
+  style.css
+  app.js
+
+
+1. CREAR EL PROYECTO EN SUPABASE
+--------------------------------
+
+1. Entra a https://supabase.com y crea un proyecto.
+2. Espera a que termine de aprovisionarse.
+3. En el menu lateral, abre SQL Editor.
+4. Pulsa New query.
+5. Copia y pega TODO el SQL de la seccion 2 y pulsa Run.
+
+
+2. SQL: TABLAS, INDICES Y PERMISOS
+----------------------------------
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.formularios (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null,
+  descripcion text not null default '',
+  activo boolean not null default true,
+  fecha_inicio timestamptz,
+  fecha_fin timestamptz,
+  creado_en timestamptz not null default now()
+);
+
+create table if not exists public.preguntas (
+  id uuid primary key default gen_random_uuid(),
+  formulario_id uuid not null references public.formularios(id) on delete cascade,
+  texto_pregunta text not null,
+  tipo text not null check (tipo in ('texto_corto', 'texto_largo', 'seleccion', 'checkbox')),
+  orden integer not null default 0,
+  obligatoria boolean not null default false,
+  opciones jsonb not null default '[]'::jsonb
+);
+
+create table if not exists public.respuestas (
+  id uuid primary key default gen_random_uuid(),
+  formulario_id uuid not null references public.formularios(id) on delete cascade,
+  datos_json jsonb not null default '{}'::jsonb,
+  creado_en timestamptz not null default now()
+);
+
+create index if not exists preguntas_formulario_orden_idx
+  on public.preguntas(formulario_id, orden);
+
+create index if not exists respuestas_formulario_creado_idx
+  on public.respuestas(formulario_id, creado_en desc);
+
+alter table public.formularios enable row level security;
+alter table public.preguntas enable row level security;
+alter table public.respuestas enable row level security;
+
+drop policy if exists "Formularios publicos activos" on public.formularios;
+create policy "Formularios publicos activos"
+on public.formularios for select to anon, authenticated
+using (
+  activo
+  and (fecha_inicio is null or fecha_inicio <= now())
+  and (fecha_fin is null or fecha_fin >= now())
+);
+
+drop policy if exists "Admins gestionan formularios" on public.formularios;
+create policy "Admins gestionan formularios"
+on public.formularios for all to authenticated
+using (true) with check (true);
+
+drop policy if exists "Preguntas de formularios publicos" on public.preguntas;
+create policy "Preguntas de formularios publicos"
+on public.preguntas for select to anon, authenticated
+using (
+  exists (
+    select 1 from public.formularios f
+    where f.id = preguntas.formulario_id
+      and f.activo
+      and (f.fecha_inicio is null or f.fecha_inicio <= now())
+      and (f.fecha_fin is null or f.fecha_fin >= now())
+  )
+);
+
+drop policy if exists "Admins gestionan preguntas" on public.preguntas;
+create policy "Admins gestionan preguntas"
+on public.preguntas for all to authenticated
+using (true) with check (true);
+
+drop policy if exists "Respuestas solo para formularios abiertos" on public.respuestas;
+create policy "Respuestas solo para formularios abiertos"
+on public.respuestas for insert to anon, authenticated
+with check (
+  exists (
+    select 1 from public.formularios f
+    where f.id = respuestas.formulario_id
+      and f.activo
+      and (f.fecha_inicio is null or f.fecha_inicio <= now())
+      and (f.fecha_fin is null or f.fecha_fin >= now())
+  )
+);
+
+drop policy if exists "Admins gestionan respuestas" on public.respuestas;
+create policy "Admins gestionan respuestas"
+on public.respuestas for all to authenticated
+using (true) with check (true);
+
+grant select on public.formularios, public.preguntas to anon, authenticated;
+grant insert on public.respuestas to anon, authenticated;
+grant select, insert, update, delete
+  on public.formularios, public.preguntas, public.respuestas
+  to authenticated;
+
+
+3. CREAR LA CUENTA DE ADMINISTRACION
+------------------------------------
+
+1. En Supabase, abre Authentication > Users.
+2. Pulsa Add user y crea el correo y la contrasena para quien administrara
+   los formularios.
+3. En Authentication > Providers > Email, desactiva el registro de usuarios
+   (Allow new users to sign up), si aparece habilitado.
+4. No publiques ni compartas la cuenta admin.
+
+La clave publica anon/publishable se usa en la pagina. La clave secreta
+service_role NO debe pegarse en app.js ni publicarse en GitHub.
+
+
+4. CONECTAR LA PAGINA A SUPABASE
+--------------------------------
+
+1. En Supabase, abre Project Settings > API (o Data API / API Keys, segun
+   la version del panel).
+2. Copia la Project URL y la clave publica anon/publishable.
+3. Abre app.js con un editor de texto o Visual Studio Code.
+4. Al principio del archivo, reemplaza estos valores de ejemplo:
+
+   const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
+   const SUPABASE_ANON_KEY = "TU_SUPABASE_ANON_KEY";
+
+   por la URL y la clave publica de tu proyecto. Conserva las comillas.
+5. Guarda app.js.
+
+
+5. SUBIR LOS ARCHIVOS A GITHUB (PowerShell)
+-------------------------------------------
+
+Instala Git para Windows si el comando git no esta disponible.
+Abre PowerShell y ejecuta estos comandos, uno por uno:
+
+Set-Location -LiteralPath "C:\Users\Lian Natera Leoncio\OneDrive\Desktop\Ya no quiero sufrir por ti"
+git init
+git add index.html style.css app.js
+git commit -m "Publicar plataforma de formularios"
+git branch -M main
+
+Antes del siguiente comando, crea un repositorio vacio en github.com. No agregues
+README, licencia ni .gitignore al crearlo. Cambia TU-USUARIO y TU-REPOSITORIO
+por los datos del repositorio:
+
+git remote add origin https://github.com/TU-USUARIO/TU-REPOSITORIO.git
+git push -u origin main
+
+Si Git solicita identificacion, sigue las instrucciones de GitHub para iniciar
+sesion. Si ya existia un repositorio Git en esta carpeta, no repitas git init:
+usa el repositorio existente y verifica el remoto antes de agregarlo.
+
+
+6. PUBLICAR EN CLOUDFLARE PAGES
+-------------------------------
+
+1. Entra a https://dash.cloudflare.com y abre Workers & Pages.
+2. Pulsa Create application > Pages > Connect to Git.
+3. Autoriza GitHub, selecciona el repositorio y pulsa Begin setup.
+4. Configura:
+
+   Production branch: main
+   Framework preset: None
+   Build command: dejar vacio
+   Build output directory: .
+   Root directory: / (raiz del repositorio)
+
+5. Pulsa Save and Deploy.
+6. Cuando termine, abre la URL *.pages.dev que proporciona Cloudflare.
+
+No agregues la clave service_role como variable de entorno de Pages ni al codigo.
+La URL y la clave anon/publishable son publicas; la proteccion de los datos
+depende de las politicas RLS configuradas en Supabase.
+
+
+7. PRUEBA DE FUNCIONAMIENTO
+---------------------------
+
+1. Abre la URL de Cloudflare Pages. La pagina publica debe listar solo
+   formularios activos y dentro de su periodo programado.
+2. Entra a Panel admin e inicia sesion con la cuenta creada en Supabase.
+3. Crea un formulario con titulo, descripcion y al menos una pregunta.
+4. Guarda primero el formulario sin marcar "Disponible para responder en la
+   pagina publica". Debe permanecer oculto.
+5. Activa esa opcion y guarda. El formulario debe aparecer en la vista publica.
+6. Envia una respuesta de prueba. En el panel, abre el formulario y verifica
+   que aparezca en la tabla.
+7. Prueba exportar el CSV, borrar la respuesta y ocultar el formulario.
+8. Borra el formulario de prueba si ya no lo necesitas.
+
+Si algo falla, revisa la consola del navegador y los registros de Supabase.
+Comprueba que se ejecuto el SQL completo, que las credenciales de app.js son
+correctas y que el proyecto de Cloudflare desplego la rama main.

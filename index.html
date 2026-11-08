@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111426">
+  <title>Ya no quiero sufrir por ti</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="page-glow page-glow-one" aria-hidden="true"></div>
+  <div class="page-glow page-glow-two" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="Inicio">
+      <span class="brand-icon" aria-hidden="true">✦</span>
+      <span>Ya no quiero sufrir <i>por ti</i></span>
+    </a>
+    <nav class="main-nav" aria-label="Navegación principal">
+      <button class="nav-button active" id="public-nav" type="button">Formularios</button>
+      <button class="nav-button" id="admin-nav" type="button">Panel admin <span aria-hidden="true">↗</span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="eyebrow-star">✳</span> Un espacio para expresarte</div>
+      <h1>Aquí caben todas nuestras ideas,<br><em>preguntas y experiencias.</em></h1>
+      <p>Comparte lo que quieras conversar, conocer o proponer. Todas las voces cuentan.</p>
+      <div class="hero-decoration" aria-hidden="true"><span>✦</span><span>●</span><span>✧</span></div>
+    </section>
+
+    <section id="public-view" class="content-section" aria-live="polite">
+      <div class="section-heading">
+        <div><span class="section-kicker">PARTICIPA</span><h2>¿Qué te gustaría compartir?</h2></div>
+        <span class="soft-label"><span class="status-dot"></span> Un espacio inclusivo</span>
+      </div>
+      <div id="public-forms" class="form-grid">
+        <div class="empty-state"><span class="loading-mark">✦</span><p>Cargando formularios...</p></div>
+      </div>
+    </section>
+
+    <section id="admin-view" class="content-section hidden">
+      <div id="admin-login" class="login-card">
+        <div class="login-icon">🔐</div>
+        <span class="section-kicker">SOLO PARA EL EQUIPO</span>
+        <h2>Qué bueno verte</h2>
+        <p>Inicia sesión con tu cuenta de administración.</p>
+        <form id="login-form" class="stack-form">
+          <label>Correo electrónico<input name="email" type="email" autocomplete="username" required placeholder="tu@correo.com"></label>
+          <label>Contraseña<input name="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña"></label>
+          <button class="button button-primary full-button" type="submit">Entrar al panel <span>→</span></button>
+          <p id="login-message" class="form-message" role="status"></p>
+        </form>
+      </div>
+
+      <div id="admin-panel" class="hidden">
+        <div class="admin-heading">
+          <div><span class="section-kicker">TU ESPACIO DE TRABAJO</span><h2>Panel de administración</h2></div>
+          <button id="logout-button" class="button button-quiet" type="button">Cerrar sesión</button>
+        </div>
+        <div class="admin-layout">
+          <aside class="admin-sidebar">
+            <button id="new-form-button" class="button button-primary full-button" type="button">＋ Crear formulario</button>
+            <div class="sidebar-title">TUS FORMULARIOS</div>
+            <div id="admin-form-list" class="admin-form-list"></div>
+          </aside>
+          <div class="admin-workspace">
+            <div id="admin-welcome" class="empty-state admin-empty"><span class="empty-icon">✿</span><h3>Un espacio para organizar ideas</h3><p>Crea un formulario o selecciona uno para editarlo y ver sus respuestas.</p></div>
+            <div id="editor-view" class="hidden">
+              <div class="editor-title-row"><div><span class="section-kicker" id="editor-kicker">NUEVO</span><h3 id="editor-heading">Crear formulario</h3></div></div>
+              <form id="form-editor" class="editor-form">
+                <input name="form-id" type="hidden">
+                <div class="editor-fields">
+                  <label>Título<input name="title" maxlength="160" required placeholder="Por ejemplo: Ideas para mejorar nuestra comunidad"></label>
+                  <label>Descripción<textarea name="description" rows="3" placeholder="Cuéntales de qué va este espacio..."></textarea></label>
+                  <div class="schedule-fields">
+                    <label>Abre (opcional)<input name="starts-at" type="datetime-local"></label>
+                    <label>Cierra (opcional)<input name="ends-at" type="datetime-local"></label>
+                  </div>
+                  <label class="toggle-row"><input name="active" type="checkbox"><span class="toggle-ui"></span><span>Disponible para responder en la página pública</span></label>
+                </div>
+                <div class="questions-heading"><div><span class="section-kicker">PREGUNTAS A TU MANERA</span><h4>Preguntas</h4></div><button id="add-question-button" class="button button-outline" type="button">＋ Añadir pregunta</button></div>
+                <div id="question-editor" class="question-editor"></div>
+                <div class="editor-actions"><button class="button button-primary" type="submit">Guardar formulario <span>→</span></button><button id="cancel-edit-button" class="button button-quiet" type="button">Cancelar</button></div>
+                <p id="editor-message" class="form-message" role="status"></p>
+              </form>
+              <section id="responses-section" class="responses-section hidden">
+                <div class="responses-heading"><div><span class="section-kicker">RESPUESTAS DE LA COMUNIDAD</span><h3>Respuestas <span id="response-count" class="count-badge">0</span></h3></div><div class="responses-actions"><button id="toggle-form-button" class="button button-outline" type="button">Ocultar de la página pública</button><button id="delete-form-button" class="button button-danger" type="button">Borrar formulario</button><button id="export-button" class="button button-outline" type="button">↓ CSV</button></div></div>
+                <div id="responses-table-wrap" class="table-wrap"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer"><span>Un espacio para compartir, escuchar y construir <span class="footer-spark">✦</span></span><span>Todas las voces cuentan.</span></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
