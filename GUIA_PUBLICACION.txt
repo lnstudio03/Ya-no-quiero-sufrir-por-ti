@@ -2,10 +2,16 @@ GUIA DE CONFIGURACION Y PUBLICACION
 Ya no quiero sufrir por ti
 =================================
 
-Esta plataforma es una sola pagina web. Necesita estos tres archivos en la raiz del proyecto:
+La pagina usa estos archivos en la raiz del proyecto:
   index.html
   style.css
   app.js
+  manifest.webmanifest
+  service-worker.js
+
+Las funciones seguras de invitacion, retiro de acceso y notificaciones push
+estan en supabase/functions. El esquema y los permisos de Supabase se configuran
+con el SQL de las secciones siguientes.
 
 Las variantes del logotipo estan en la raiz, junto a index.html:
   logo-principal.png    Logo principal circular.
@@ -125,21 +131,262 @@ grant select, insert, update, delete
   to authenticated;
 
 
-3. CREAR LA CUENTA DE ADMINISTRACION
-------------------------------------
+3. ACTUALIZAR PERMISOS, EQUIPO Y NOTIFICACIONES
+------------------------------------------------
 
-1. En Supabase, abre Authentication > Users.
-2. Pulsa Add user y crea el correo y la contrasena para quien administrara
-   los formularios.
-3. En Authentication > Providers > Email, desactiva el registro de usuarios
-   (Allow new users to sign up), si aparece habilitado.
-4. No publiques ni compartas la cuenta admin.
+Ejecuta este bloque despues del SQL anterior, tambien si ya habias publicado la
+version anterior. Los formularios y respuestas existentes se conservan.
 
-La clave publica anon/publishable se usa en la pagina. La clave secreta
-service_role NO debe pegarse en app.js ni publicarse en GitHub.
+create table if not exists public.administradores (
+  usuario_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  es_propietario boolean not null default false,
+  invitado_por uuid references auth.users(id) on delete set null,
+  creado_en timestamptz not null default now()
+);
+alter table public.administradores add column if not exists email text;
+alter table public.administradores add column if not exists es_propietario boolean not null default false;
+create unique index if not exists administradores_un_solo_propietario_idx
+  on public.administradores (es_propietario)
+  where es_propietario;
+update public.administradores a
+set email = u.email
+from auth.users u
+where a.usuario_id = u.id and a.email is null;
+
+create or replace function public.es_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1 from public.administradores
+    where usuario_id = auth.uid()
+  );
+$$;
+
+revoke all on function public.es_admin() from public;
+grant execute on function public.es_admin() to authenticated;
+
+alter table public.administradores enable row level security;
+drop policy if exists "Admins leen su rol" on public.administradores;
+
+create or replace function public.es_propietario()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1 from public.administradores
+    where usuario_id = auth.uid()
+      and es_propietario
+  );
+$$;
+revoke all on function public.es_propietario() from public;
+grant execute on function public.es_propietario() to authenticated;
+
+create policy "Admins leen su rol"
+on public.administradores for select to authenticated
+using (usuario_id = auth.uid() or public.es_propietario());
+grant select on public.administradores to authenticated;
+
+create table if not exists public.solicitudes_admin (
+  email text primary key,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'invitado')),
+  creado_en timestamptz not null default now()
+);
+alter table public.solicitudes_admin enable row level security;
+drop policy if exists "Publico solicita acceso" on public.solicitudes_admin;
+create policy "Publico solicita acceso"
+on public.solicitudes_admin for insert to anon, authenticated
+with check (
+  estado = 'pendiente'
+  and length(email) <= 254
+  and email = lower(btrim(email))
+  and email ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+);
+drop policy if exists "Propietaria revisa solicitudes" on public.solicitudes_admin;
+create policy "Propietaria revisa solicitudes"
+on public.solicitudes_admin for select to authenticated
+using (public.es_propietario());
+grant insert (email) on public.solicitudes_admin to anon, authenticated;
+grant select on public.solicitudes_admin to authenticated;
+grant select, insert, update, delete on public.solicitudes_admin to service_role;
+
+create or replace function public.remover_admin(p_usuario uuid, p_actor uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  admin_count integer;
+begin
+  lock table public.administradores in exclusive mode;
+  if not exists (
+    select 1 from public.administradores
+    where usuario_id = p_actor and es_propietario
+  ) then
+    return 'forbidden';
+  end if;
+  if exists (
+    select 1 from public.administradores
+    where usuario_id = p_usuario and es_propietario
+  ) then
+    return 'owner';
+  end if;
+  if p_usuario = p_actor then
+    return 'self';
+  end if;
+  select count(*) into admin_count from public.administradores;
+  if admin_count <= 1 then
+    return 'last_admin';
+  end if;
+  delete from public.push_subscriptions where usuario_id = p_usuario;
+  delete from public.solicitudes_admin s
+  using public.administradores a
+  where a.usuario_id = p_usuario and s.email = a.email;
+  delete from public.administradores where usuario_id = p_usuario;
+  if not found then
+    return 'not_found';
+  end if;
+  return 'removed';
+end;
+$$;
+revoke all on function public.remover_admin(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.remover_admin(uuid, uuid) to service_role;
+
+drop policy if exists "Admins gestionan formularios" on public.formularios;
+create policy "Admins gestionan formularios"
+on public.formularios for all to authenticated
+using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "Admins gestionan preguntas" on public.preguntas;
+create policy "Admins gestionan preguntas"
+on public.preguntas for all to authenticated
+using (public.es_admin()) with check (public.es_admin());
+
+drop policy if exists "Admins gestionan respuestas" on public.respuestas;
+create policy "Admins gestionan respuestas"
+on public.respuestas for all to authenticated
+using (public.es_admin()) with check (public.es_admin());
+
+alter table public.preguntas drop constraint if exists preguntas_tipo_check;
+update public.preguntas
+set tipo = 'texto'
+where tipo in ('texto_corto', 'texto_largo');
+alter table public.preguntas
+  add constraint preguntas_tipo_check
+  check (tipo in ('texto', 'seleccion', 'checkbox'));
+
+create table if not exists public.push_subscriptions (
+  endpoint text primary key,
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  p256dh text not null,
+  auth text not null,
+  creado_en timestamptz not null default now()
+);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "Admins gestionan sus suscripciones push" on public.push_subscriptions;
+create policy "Admins gestionan sus suscripciones push"
+on public.push_subscriptions for all to authenticated
+using (usuario_id = auth.uid() and public.es_admin())
+with check (usuario_id = auth.uid() and public.es_admin());
+grant select, insert, update on public.push_subscriptions to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'formularios'
+  ) then
+    alter publication supabase_realtime add table public.formularios;
+  end if;
+end
+$$;
+
+CREAR LA PRIMERA CUENTA ADMIN
+-----------------------------
+
+1. En Supabase, abre Authentication > Users y crea la cuenta de la propietaria
+   principal con su correo y una contraseña. Verifica ese correo.
+2. Ejecuta en SQL Editor (reemplaza TU_CORREO_PRINCIPAL por ese correo):
+
+   insert into public.administradores (usuario_id, email, es_propietario)
+   select id, email, true
+   from auth.users where lower(email) = lower('TU_CORREO_PRINCIPAL@ejemplo.com')
+   on conflict (usuario_id) do update
+     set email = excluded.email, es_propietario = true;
+
+No habilites el registro publico de cuentas. Cualquier visitante puede solicitar
+acceso con su correo en la pagina, pero solo la cuenta principal puede aprobarlo,
+enviar invitaciones o retirar el acceso de otras cuentas. Conserva el acceso a la
+cuenta principal; el sistema no permite retirarla desde el panel.
 
 
-4. CONECTAR LA PAGINA A SUPABASE
+4. DESPLEGAR LAS FUNCIONES SEGURAS
+----------------------------------
+
+Instala Supabase CLI y, desde la raiz del proyecto, vincula este repositorio:
+
+   supabase login
+   supabase link --project-ref TU_PROJECT_REF
+
+Genera un par de claves VAPID para notificaciones web push. Con Node.js instalado,
+ejecuta:
+
+   node -e "const c=require('node:crypto'),{publicKey,privateKey}=c.generateKeyPairSync('ec',{namedCurve:'prime256v1'}),p=publicKey.export({format:'jwk'}),s=privateKey.export({format:'jwk'}),b=v=>Buffer.from(v,'base64url');console.log('PUBLICA='+Buffer.concat([Buffer.from([4]),b(p.x),b(p.y)]).toString('base64url'));console.log('PRIVADA='+s.d)"
+
+Configura los secretos SOLO en Supabase (usa el dominio HTTPS real de tu pagina;
+no pongas la clave privada en app.js ni en Git):
+
+   supabase secrets set SITE_URL='https://TU-SITIO.pages.dev' PUSH_VAPID_PUBLIC_KEY='CLAVE_PUBLICA' PUSH_VAPID_PRIVATE_KEY='CLAVE_PRIVADA' VAPID_SUBJECT='mailto:admin@ejemplo.com'
+   supabase functions deploy invite-admin
+   supabase functions deploy remove-admin
+   supabase functions deploy send-push
+
+Las funciones usan en el servidor las variables SUPABASE_URL, SUPABASE_ANON_KEY
+y SUPABASE_SERVICE_ROLE_KEY de Supabase. Nunca copies SUPABASE_SERVICE_ROLE_KEY
+a la pagina ni al repositorio.
+
+En Authentication > URL Configuration, agrega la URL HTTPS publicada a Site URL
+y Redirect URLs. En app.js, pega el mismo valor de CLAVE_PUBLICA en
+PUSH_VAPID_PUBLIC_KEY. Esta clave es publica; la privada permanece como secreto.
+Los avisos push requieren HTTPS y que cada administrador los active en su
+navegador.
+
+
+5. ACCESO Y APROBACION DEL EQUIPO
+--------------------
+
+En la pagina de acceso, una persona puede enviar su correo para solicitar acceso.
+La cuenta principal revisa la solicitud desde "Solicitudes de acceso" y pulsa
+"Aprobar y enviar acceso". Supabase envia un enlace; al abrirlo, la persona crea
+y confirma su contraseña en la pagina. Despues entra con su correo y contraseña.
+
+La cuenta principal tambien puede invitar un correo directamente desde el panel.
+Solo ella puede aprobar solicitudes, invitar y retirar otras cuentas. Los demas
+administradores pueden gestionar formularios, preguntas y respuestas.
+Si el correo aprobado ya tenia cuenta en Supabase, se le envia un enlace de
+recuperacion para crear una contraseña; si no, recibe una invitacion. Al retirar
+un administrador, se elimina tambien su solicitud anterior para que pueda pedir
+acceso de nuevo si lo necesita. El panel "Olvide mi contraseña" envia un enlace
+de recuperacion al correo.
+
+En Authentication > Providers > Email, habilita contraseñas y enlaces de
+invitacion/recuperacion, y desactiva el registro publico (Allow new users to sign
+up). Configura el SMTP del proyecto para entregar invitaciones y recuperaciones.
+Agrega a Redirect URLs el dominio de la pagina con modo de configuracion y
+recuperacion; si el panel acepta comodines, usa https://TU-SITIO.pages.dev/**.
+
+
+6. CONECTAR LA PAGINA A SUPABASE
 --------------------------------
 
 1. En Supabase, abre Project Settings > API (o Data API / API Keys, segun
@@ -155,7 +402,7 @@ service_role NO debe pegarse en app.js ni publicarse en GitHub.
 5. Guarda app.js.
 
 
-5. SUBIR LOS ARCHIVOS A GITHUB (PowerShell)
+7. SUBIR LOS ARCHIVOS A GITHUB (PowerShell)
 -------------------------------------------
 
 Instala Git para Windows si el comando git no esta disponible.
@@ -163,7 +410,7 @@ Abre PowerShell y ejecuta estos comandos, uno por uno:
 
 Set-Location -LiteralPath "C:\Users\Lian Natera Leoncio\OneDrive\Desktop\Ya no quiero sufrir por ti"
 git init
-git add index.html style.css app.js GUIA_PUBLICACION.txt favicon.png logo-cuadrado.png logo-horizontal.png logo-monocromo.png logo-principal.png logo.png simbolo.png
+git add index.html style.css app.js GUIA_PUBLICACION.txt manifest.webmanifest service-worker.js supabase/functions favicon.png logo-cuadrado.png logo-horizontal.png logo-monocromo.png logo-principal.png logo.png simbolo.png
 git commit -m "Publicar plataforma de formularios"
 git branch -M main
 
@@ -179,7 +426,7 @@ sesion. Si ya existia un repositorio Git en esta carpeta, no repitas git init:
 usa el repositorio existente y verifica el remoto antes de agregarlo.
 
 
-6. PUBLICAR EN CLOUDFLARE PAGES
+8. PUBLICAR EN CLOUDFLARE PAGES
 -------------------------------
 
 1. Entra a https://dash.cloudflare.com y abre Workers & Pages.
@@ -201,20 +448,29 @@ La URL y la clave anon/publishable son publicas; la proteccion de los datos
 depende de las politicas RLS configuradas en Supabase.
 
 
-7. PRUEBA DE FUNCIONAMIENTO
+9. PRUEBA DE FUNCIONAMIENTO
 ---------------------------
 
 1. Abre la URL de Cloudflare Pages. La pagina publica debe listar solo
    formularios activos y dentro de su periodo programado.
-2. Entra a Panel admin e inicia sesion con la cuenta creada en Supabase.
-3. Crea un formulario con titulo, descripcion y al menos una pregunta.
-4. Guarda primero el formulario sin marcar "Disponible para responder en la
+2. En la pagina de acceso, solicita acceso con un correo nuevo. Entra con la
+   cuenta principal y comprueba que la solicitud aparezca en el panel.
+3. Aprueba la solicitud. Abre el enlace de invitacion, crea y confirma la
+   contraseña. Cierra la sesion y comprueba que puedas volver a entrar con ella.
+4. Prueba "Olvide mi contraseña" y completa la recuperacion desde el correo.
+5. Crea un formulario con titulo, descripcion y varias preguntas.
+6. Guarda primero el formulario sin marcar "Disponible para responder en la
    pagina publica". Debe permanecer oculto.
-5. Activa esa opcion y guarda. El formulario debe aparecer en la vista publica.
-6. Envia una respuesta de prueba. En el panel, abre el formulario y verifica
+7. Activa esa opcion y guarda. El formulario debe aparecer en la vista publica.
+8. Envia una respuesta de texto larga y comprueba que no se trunque. En el panel,
+   abre el formulario y verifica todas las preguntas y respuestas.
+9. Activa los avisos push en un navegador de administrador y publica otro
+   formulario. Comprueba el aviso dentro del panel y la notificacion push.
+10. Invita a otro administrador y comprueba que cree su contraseña desde el enlace.
+11. Envia una respuesta de prueba. En el panel, abre el formulario y verifica
    que aparezca en la tabla.
-7. Prueba exportar el CSV, borrar la respuesta y ocultar el formulario.
-8. Borra el formulario de prueba si ya no lo necesitas.
+12. Prueba exportar el CSV, borrar la respuesta y ocultar el formulario.
+13. Borra el formulario de prueba si ya no lo necesitas.
 
 Si algo falla, revisa la consola del navegador y los registros de Supabase.
 Comprueba que se ejecuto el SQL completo, que las credenciales de app.js son

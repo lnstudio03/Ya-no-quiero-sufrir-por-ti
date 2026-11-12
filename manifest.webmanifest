@@ -1,0 +1,19 @@
+{
+  "name": "Ya no quiero sufrir por ti",
+  "short_name": "Ya no quiero sufrir",
+  "description": "Un espacio para compartir, escuchar y construir.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#100817",
+  "theme_color": "#100817",
+  "icons": [
+    {
+      "src": "logo-cuadrado.png",
+      "sizes": "228x224",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

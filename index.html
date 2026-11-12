@@ -4,9 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#100817">
+  <meta name="description" content="Un espacio para compartir ideas, preguntas y experiencias. Todas las voces cuentan.">
   <title>Ya no quiero sufrir por ti</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="logo-cuadrado.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -47,29 +49,72 @@
     </section>
 
     <section id="admin-view" class="content-section hidden">
+      <div id="admin-password-setup" class="login-card hidden">
+        <div class="login-icon" aria-hidden="true">✦</div>
+        <span class="section-kicker">ACCESO PERSONAL</span>
+        <h2 id="password-setup-heading">Crea tu contraseña</h2>
+        <p>Elige una contraseña segura para usar cada vez que entres.</p>
+        <form id="setup-password-form" class="stack-form">
+          <label>Nueva contraseña<input name="password" type="password" minlength="8" autocomplete="new-password" required placeholder="Mínimo 8 caracteres"></label>
+          <label>Repite la contraseña<input name="password-confirmation" type="password" minlength="8" autocomplete="new-password" required placeholder="Confirma tu contraseña"></label>
+          <button class="button button-primary full-button" type="submit">Guardar contraseña <span>→</span></button>
+          <p id="password-setup-message" class="form-message" role="status"></p>
+        </form>
+      </div>
+
       <div id="admin-login" class="login-card">
-        <div class="login-icon">🔐</div>
+        <div class="login-icon" aria-hidden="true">✦</div>
         <span class="section-kicker">SOLO PARA EL EQUIPO</span>
         <h2>Qué bueno verte</h2>
-        <p>Inicia sesión con tu cuenta de administración.</p>
+        <p>Accede con el correo y la contraseña de tu cuenta autorizada.</p>
         <form id="login-form" class="stack-form">
           <label>Correo electrónico<input name="email" type="email" autocomplete="username" required placeholder="tu@correo.com"></label>
           <label>Contraseña<input name="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña"></label>
-          <button class="button button-primary full-button" type="submit">Entrar al panel <span>→</span></button>
+          <button class="button button-primary full-button" type="submit">Iniciar sesión <span>→</span></button>
+          <button id="reset-password-button" class="button button-quiet full-button" type="button">Olvidé mi contraseña</button>
           <p id="login-message" class="form-message" role="status"></p>
         </form>
+        <div class="access-request">
+          <h3>¿Necesitas acceso?</h3>
+          <p>Registra tu correo. La cuenta principal revisará tu solicitud y, si te da acceso, recibirás un enlace para crear tu contraseña.</p>
+          <form id="request-access-form" class="team-form">
+            <label for="request-access-email">Tu correo electrónico</label>
+            <input id="request-access-email" name="email" type="email" autocomplete="email" required placeholder="tu@correo.com">
+            <button class="button button-outline full-button" type="submit">Solicitar acceso</button>
+            <p id="request-access-message" class="form-message" role="status"></p>
+          </form>
+        </div>
       </div>
 
       <div id="admin-panel" class="hidden">
         <div class="admin-heading">
           <div><span class="section-kicker">TU ESPACIO DE TRABAJO</span><h2>Panel de administración</h2></div>
-          <button id="logout-button" class="button button-quiet" type="button">Cerrar sesión</button>
+          <div class="admin-heading-actions">
+            <button id="notifications-button" class="button button-outline" type="button">Activar avisos push</button>
+            <button id="logout-button" class="button button-quiet" type="button">Cerrar sesión</button>
+          </div>
         </div>
         <div class="admin-layout">
           <aside class="admin-sidebar">
             <button id="new-form-button" class="button button-primary full-button" type="button">＋ Crear formulario</button>
             <div class="sidebar-title">TUS FORMULARIOS</div>
             <div id="admin-form-list" class="admin-form-list"></div>
+            <section id="admin-team-management" class="team-card hidden">
+              <span class="section-kicker">ESPACIO COMPARTIDO</span>
+              <h3>Invitar al equipo</h3>
+              <p>Aprueba el correo de alguien y recibirá un enlace para crear su contraseña.</p>
+              <form id="invite-admin-form" class="team-form">
+                <label for="invite-admin-email">Correo electrónico</label>
+                <input id="invite-admin-email" name="email" type="email" autocomplete="email" required placeholder="equipo@correo.com">
+                <button class="button button-outline full-button" type="submit">Enviar invitación <span>→</span></button>
+                <p id="invite-admin-message" class="form-message" role="status"></p>
+              </form>
+              <div id="admin-team-list" class="admin-team-list" aria-live="polite"></div>
+              <div class="access-requests">
+                <h4>Solicitudes de acceso <span id="access-request-count" class="count-badge">0</span></h4>
+                <div id="admin-access-requests" class="admin-access-requests" aria-live="polite"></div>
+              </div>
+            </section>
           </aside>
           <div class="admin-workspace">
             <div id="admin-welcome" class="empty-state admin-empty"><span class="empty-icon">✿</span><h3>Un espacio para organizar ideas</h3><p>Crea un formulario o selecciona uno para editarlo y ver sus respuestas.</p></div>
@@ -86,7 +131,7 @@
                   </div>
                   <label class="toggle-row"><input name="active" type="checkbox"><span class="toggle-ui"></span><span>Disponible para responder en la página pública</span></label>
                 </div>
-                <div class="questions-heading"><div><span class="section-kicker">PREGUNTAS A TU MANERA</span><h4>Preguntas</h4></div><button id="add-question-button" class="button button-outline" type="button">＋ Añadir pregunta</button></div>
+                <div class="questions-heading"><div><span class="section-kicker">PREGUNTAS A TU MANERA</span><h4>Preguntas <span id="question-count" class="count-badge">0</span></h4><p>Agrega todas las preguntas que necesites. Las respuestas de texto no tienen límite.</p></div><button id="add-question-button" class="button button-outline" type="button">＋ Añadir pregunta</button></div>
                 <div id="question-editor" class="question-editor"></div>
                 <div class="editor-actions"><button class="button button-primary" type="submit">Guardar formulario <span>→</span></button><button id="cancel-edit-button" class="button button-quiet" type="button">Cancelar</button></div>
                 <p id="editor-message" class="form-message" role="status"></p>
@@ -103,5 +148,6 @@
   </main>
   <footer class="site-footer"><span>Un espacio para compartir, escuchar y construir <span class="footer-spark">✦</span></span><span>Todas las voces cuentan.</span></footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="live-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>
